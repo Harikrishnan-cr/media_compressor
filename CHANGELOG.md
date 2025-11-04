@@ -1,6 +1,14 @@
-## 1.0.0
+## 0.0.1
 
-* Initial release
+* Initial pre-release
+* Basic image compression with quality control
+* Video compression with basic options
+* Progress tracking support
+* Android platform implementation
+
+## 1.0.0 [Upcoming]
+
+* Initial stable release
 * Image compression with quality control
 * Video compression with bitrate and resolution options
 * Batch compression support
