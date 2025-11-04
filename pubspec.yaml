@@ -2,7 +2,8 @@ name: media_compressor
 description: "A Flutter plugin for efficient image and video compression"
 version: 0.0.1
 homepage: https://harikrishnancr.com
-repository: https://github.com/harikrishnancr/media_compresso
+repository: https://github.com/Harikrishnan-cr/media_compressor
+
 
 environment:
   sdk: ^3.9.2
