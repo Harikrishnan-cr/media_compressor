@@ -19,6 +19,7 @@ dependencies:
   media_compressor:
     path: ../
   image_picker: ^1.0.4
+  video_player: ^2.10.0
   cupertino_icons: ^1.0.8
 
 dev_dependencies:
