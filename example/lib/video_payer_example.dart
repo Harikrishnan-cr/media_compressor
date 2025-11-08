@@ -7,7 +7,7 @@ import 'package:native_video_player/native_video_player.dart';
 class NativeVideoPlayerScreen extends StatefulWidget {
   final String? videoPath; // nullable
   const NativeVideoPlayerScreen({super.key, this.videoPath});
-
+  
   @override
   State<NativeVideoPlayerScreen> createState() =>
       _NativeVideoPlayerScreenState();
