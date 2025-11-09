@@ -363,6 +363,18 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 For issues, feature requests, or questions, please file an issue on the [GitHub repository](https://github.com/Harikrishnan-cr/media_compressor).
 
+## Media Credits
+
+The demo uses sample media for showcasing compression features.
+
+### 📷 Image Credit
+Photo by [Zhen Yao](https://unsplash.com/@zhenyao_photo?utm_source=unsplash&utm_medium=referral&utm_content=creditCopyText)  
+from [Unsplash](https://unsplash.com/photos/a-purple-double-decker-tram-drives-down-a-city-street-rkh4MD-kSRI?utm_source=unsplash&utm_medium=referral&utm_content=creditCopyText)
+
+### 🎥 Video Credit
+Video by [tham nguyen](https://pixabay.com/users/tham_ms-51941956/?utm_source=link-attribution&utm_medium=referral&utm_campaign=video&utm_content=305657)  
+from [Pixabay](https://pixabay.com/?utm_source=link-attribution&utm_medium=referral&utm_campaign=video&utm_content=305657)
+
 ---
 
 **Made with ❤️ for the Flutter community**
