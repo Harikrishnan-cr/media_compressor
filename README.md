@@ -6,13 +6,15 @@ A Flutter plugin for compressing images and videos efficiently using native plat
 
 See the plugin in action:
 
-### Image Compression Demo   |   Video Compression Demo
+| Image Compression Demo | Video Compression Demo |
+| ---------------------- | ---------------------- |
+| ![Image Compression Demo](https://raw.githubusercontent.com/flutter/packages/refs/heads/main/packages/video_player/video_player/doc/demo_ipod.gif) | ![Video Compression Demo](https://raw.githubusercontent.com/flutter/packages/refs/heads/main/packages/video_player/video_player/doc/demo_ipod.gif) |
 
-[![Image Compression Demo](https://raw.githubusercontent.com/flutter/packages/refs/heads/main/packages/video_player/video_player/doc/demo_ipod.gif) [![Video Compression Demo](https://raw.githubusercontent.com/flutter/packages/refs/heads/main/packages/video_player/video_player/doc/demo_ipod.gif)]]
 
+<!-- ### Image Compression Demo   |   Video Compression Demo
 
+[![Image Compression Demo](https://raw.githubusercontent.com/flutter/packages/refs/heads/main/packages/video_player/video_player/doc/demo_ipod.gif) [![Video Compression Demo](https://raw.githubusercontent.com/flutter/packages/refs/heads/main/packages/video_player/video_player/doc/demo_ipod.gif)]] -->
 
-[![Video Compression Demo](https://www.youtube.com/watch?v=YOUR_VIDEO_DEMO_ID)]
 ## Features
 
 ✅ **Image Compression** - Compress images with quality and dimension control  
