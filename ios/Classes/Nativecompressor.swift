@@ -1,6 +1,7 @@
 import Foundation
 import UIKit
 import AVFoundation
+import Flutter
 
 class NativeCompressor {
     
