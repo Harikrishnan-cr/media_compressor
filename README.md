@@ -10,6 +10,11 @@ See the plugin in action:
 | ---------------------- | ---------------------- |
 | <img src="https://raw.githubusercontent.com/Harikrishnan-cr/media_compressor/v1-stable/example/lib/demo/image_compression.gif" width="250"/> | <img src="https://raw.githubusercontent.com/Harikrishnan-cr/media_compressor/v1-stable/example/lib/demo/video_compression_gif.gif" width="250"/> |
 
+## Latest Updates
+
+### v1.0.1 (Current)
+- 🐛 **Bug Fix**: Fixed iOS compilation error by adding missing Flutter framework import
+- ✅ All functionality working as expected on both platforms
 
 
 ## Features

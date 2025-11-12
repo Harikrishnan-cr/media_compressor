@@ -4,7 +4,7 @@
 #
 Pod::Spec.new do |s|
   s.name             = 'media_compressor'
-  s.version          = '0.0.1'
+  s.version          = '1.0.1'
   s.summary          = 'A Flutter plugin for efficient image and video compression'
   s.description      = <<-DESC
 A Flutter plugin for efficient image and video compression

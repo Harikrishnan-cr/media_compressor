@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.1] - 2025-11-12
+### Fixed
+- Fixed iOS build error caused by missing Flutter framework import in native implementation
+- Resolved compilation issues when running the plugin on iOS devices and simulators
+- No functional changes - all compression features work as intended
+
 ## [1.0.0] - 2025-11-09
 ### Added
 - Stable release of the `media_compressor` package
