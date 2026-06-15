@@ -1,6 +1,6 @@
 # Media Compressor
 
-A Flutter plugin for compressing images and videos efficiently using native platform implementations.
+A Flutter plugin for compressing images and videos efficiently using native platform implementations — now on **Android, iOS, and Web**.
 
 ## Demo
 
@@ -12,27 +12,55 @@ See the plugin in action:
 
 ## Latest Updates
 
-### v1.0.1 (Current)
-- 🐛 **Bug Fix**: Fixed iOS compilation error by adding missing Flutter framework import
-- ✅ All functionality working as expected on both platforms
+### v1.1.0-beta.1
+- 🌐 **Web support (beta)** — image (Canvas) and video (ffmpeg.wasm or MediaRecorder) compression in the browser
+- 🛑 **`cancel()`** — abort an in-flight video compression on every platform
+- 🧹 **`release()` / `releaseResult()`** — free a compressed result (revokes blob URL on web, deletes temp file on mobile)
+- 🔒 Hardened: cache-scoped file deletion, single-flight video, managed native lifecycle
+- No breaking changes to the existing Dart API
 
+### v1.0.1
+- 🐛 Fixed iOS compilation error by adding the missing Flutter framework import
+- ✅ All functionality working as expected on Android and iOS
 
 ## Features
 
-✅ **Image Compression** - Compress images with quality and dimension control  
-✅ **Video Compression** - Compress videos with quality presets  
-✅ **Native Performance** - Uses platform-specific compression for optimal results  
-✅ **Error Handling** - Comprehensive error handling with detailed error messages  
-✅ **Cross-platform** - Supports both Android and iOS  
-✅ **EXIF Orientation** - Automatic correction of image orientation  
+✅ **Image Compression** — quality and dimension control  
+✅ **Video Compression** — quality presets (low / medium / high)  
+✅ **Native Performance** — platform-specific compression for optimal results  
+✅ **Web Support (beta)** — in-browser compression via Canvas + ffmpeg.wasm / MediaRecorder  
+✅ **Progress Tracking** — real-time video progress on Android and Web  
+✅ **Cancel & Release** — abort jobs and free outputs  
+✅ **Error Handling** — comprehensive, typed error codes  
+✅ **Cross-platform** — Android, iOS, and Web  
+✅ **EXIF Orientation** — automatic image orientation correction  
+
+## Platform Support
+
+| Feature | Android | iOS | Web (beta) |
+|---------|---------|-----|------------|
+| Image compression | ✅ | ✅ | ✅ |
+| Video compression | ✅ Media3 (bitrate + resolution) | ✅ AVAssetExportSession (presets) | ✅ ffmpeg.wasm* or MediaRecorder |
+| Progress | ✅ | 🚧 | ✅ |
+| Cancel | ✅ | ✅ | ✅ |
+| Output | MP4 / JPEG (file path) | MP4 / JPEG (file path) | MP4 / WebM / JPEG (blob URL) |
+
+\* ffmpeg.wasm is opt-in — see [Web video backends](#web-video-backends).
 
 ## Installation
 
-Add this to your package's `pubspec.yaml` file:
+**Stable** (Android + iOS):
 
 ```yaml
 dependencies:
-  media_compressor: ^1.0.0
+  media_compressor: ^1.0.1
+```
+
+**Beta** (adds Web support):
+
+```yaml
+dependencies:
+  media_compressor: 1.1.0-beta.1
 ```
 
 Then run:
@@ -54,10 +82,10 @@ import 'package:media_compressor/media_compressor.dart';
 ```dart
 final result = await MediaCompressor.compressImage(
   ImageCompressionConfig(
-    path: '/path/to/image.jpg',
-    quality: 80,           // 0-100, where 100 is best quality
-    maxWidth: 1920,        // Optional: max width in pixels
-    maxHeight: 1080,       // Optional: max height in pixels
+    path: '/path/to/image.jpg', // a blob URL on web (from image_picker)
+    quality: 80,                // 0-100, where 100 is best quality
+    maxWidth: 1920,             // Optional: max width in pixels
+    maxHeight: 1080,            // Optional: max height in pixels
   ),
 );
 
@@ -73,7 +101,7 @@ if (result.isSuccess) {
 ```dart
 final result = await MediaCompressor.compressVideo(
   VideoCompressionConfig(
-    path: '/path/to/video.mp4',
+    path: '/path/to/video.mp4', // a blob URL on web
     quality: VideoQuality.medium,  // low, medium, high
   ),
 );
@@ -85,45 +113,52 @@ if (result.isSuccess) {
 }
 ```
 
-### Video Quality Presets
+> Only **one** video compression runs at a time on every platform. A concurrent
+> call returns the error code `BUSY`.
 
-The `VideoQuality` enum provides three quality levels:
+### Cancel & Release
+
+```dart
+// Abort the in-flight video compression (safe no-op if none).
+await MediaCompressor.cancel();
+
+// Free a result when you no longer need it
+// (revokes the blob URL on web, deletes the temp file on mobile).
+await MediaCompressor.release(result.path!);
+await MediaCompressor.releaseResult(result);
+```
+
+> ⚠️ Don't release a result that's still in use — a revoked blob URL will no
+> longer load in `Image.network` or a video player.
+
+### Progress Tracking (Android & Web)
+
+```dart
+final eventChannel = EventChannel('native_compressor/progress');
+
+eventChannel.receiveBroadcastStream().listen((event) {
+  final percentage = event['percentage'] as int;
+  print('Compression progress: $percentage%');
+});
+```
+
+### Video Quality Presets
 
 ```dart
 enum VideoQuality {
-  low,     // Lower bitrate, smaller file size
-  medium,  // Balanced quality and size (recommended)
-  high,    // Higher quality, larger file size
+  low,     // 480p — smaller file
+  medium,  // 720p — balanced (recommended)
+  high,    // 1080p — higher quality
 }
-
-// Usage examples:
-VideoCompressionConfig(
-  path: '/path/to/video.mp4',
-  quality: VideoQuality.low,     // For quick sharing, previews
-)
-
-VideoCompressionConfig(
-  path: '/path/to/video.mp4',
-  quality: VideoQuality.medium,  // Default - best for most cases
-)
-
-VideoCompressionConfig(
-  path: '/path/to/video.mp4',
-  quality: VideoQuality.high,    // For high-quality archival
-)
 ```
 
 ### Compression Result
 
-All compression methods return a `CompressionResult` object:
-
 ```dart
 class CompressionResult {
   final bool isSuccess;
-  final String? path;              // Path to compressed file
-  final CompressionError? error;   // Error details if failed
-  
-  // Helper getters
+  final String? path;              // file path (mobile) or blob URL (web)
+  final CompressionError? error;
   bool get isFailure => !isSuccess;
 }
 ```
@@ -132,25 +167,60 @@ class CompressionResult {
 
 ```dart
 class CompressionError {
-  final String code;      // Error code for programmatic handling
-  final String message;   // Human-readable error message
-  final dynamic details;  // Additional error details
+  final String code;      // programmatic code
+  final String message;   // human-readable message
+  final dynamic details;  // optional platform details
 }
 ```
 
 Common error codes:
-- `INVALID_ARGUMENT` - Invalid arguments provided (e.g., missing path, quality out of range, invalid dimensions)
-- `COMPRESSION_ERROR` - Native compression failed
-- `FILE_NOT_FOUND` - Input file doesn't exist at the specified path
-- `NULL_RESULT` - Compression returned null or empty result
-- `TIMEOUT` - Video compression exceeded timeout
-- `UNKNOWN_ERROR` - Unexpected error occurred
+- `INVALID_ARGUMENT` — invalid arguments (missing path, quality out of range, bad dimensions)
+- `FILE_NOT_FOUND` — input file doesn't exist
+- `COMPRESSION_ERROR` — native/browser compression failed
+- `NULL_RESULT` — compression returned null/empty
+- `TIMEOUT` — exceeded the timeout
+- `CANCELLED` — aborted via `cancel()`
+- `BUSY` — another video compression is already in progress
+- `UNSUPPORTED` / `UNSUPPORTED_PLATFORM` — no encoder available on this platform
+- `LOAD_ERROR` / `PLAYBACK_ERROR` — web: failed to load/play the source
+- `INPUT_TOO_LARGE` — web: source exceeds the in-browser size limit
+- `UNKNOWN_ERROR` — unexpected error
+
+## Working with Results on Web
+
+On web, `result.path` is a **blob object URL** (e.g. `blob:http://...`), not a
+filesystem path. Use network/blob-aware APIs:
+
+```dart
+// Preview an image
+Image.network(result.path!);
+
+// Read bytes / size cross-platform (works for mobile paths AND web blob URLs)
+final xfile = XFile(result.path!);
+final bytes = await xfile.readAsBytes();
+final size  = await xfile.length();
+```
+
+`File(result.path)` does **not** work on web — avoid `dart:io` in shared code.
+
+## Web video backends
+
+- **MediaRecorder (default, zero setup):** canvas re-encode. WebM on
+  Chromium/Firefox, MP4 on Safari/iOS, best-effort audio. Real-time; bitrate is
+  a hint; progress is a time estimate.
+- **ffmpeg.wasm (opt-in, recommended for production):** register a global
+  `window.mediaCompressorFfmpeg` (shim provided in the header of
+  `media_compressor_web.dart`) for off-thread H.264/MP4 with **enforced bitrate**
+  and **exact progress**. Requires cross-origin isolation in `web/index.html`
+  (`COOP: same-origin`, `COEP: require-corp`) and a review of the libx264
+  (LGPL/GPL) licensing for your use case.
 
 ## Platform-specific Setup
 
 ### Android
 
-Add the following permissions to your `AndroidManifest.xml`:
+Add the following permissions to your `AndroidManifest.xml` (only if reading
+shared storage on API ≤ 32):
 
 ```xml
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
@@ -171,97 +241,81 @@ Add the following to your `Info.plist`:
 <string>This app needs access to compress photos and videos.</string>
 ```
 
+### Web
+
+No setup is required for the default MediaRecorder backend. For the ffmpeg.wasm
+backend, add the COOP/COEP headers and the shim (see
+[Web video backends](#web-video-backends)).
+
 ## API Reference
 
 ### MediaCompressor
 
-The main singleton class for compression operations.
+Static entry point for all compression operations.
 
-#### Methods
-
-##### `compressImage(ImageCompressionConfig config)`
-
-Compresses an image file with the specified configuration.
-
-**Parameters:**
-- `config` - Image compression configuration
-
-**Returns:** `Future<CompressionResult>`
-
-##### `compressVideo(VideoCompressionConfig config, {Duration? timeout})`
-
-Compresses a video file with the specified configuration.
-
-**Parameters:**
-- `config` - Video compression configuration
-- `timeout` - Optional timeout duration (default: 5 minutes)
-
-**Returns:** `Future<CompressionResult>`
+| Method | Returns | Description |
+|--------|---------|-------------|
+| `compressImage(ImageCompressionConfig)` | `Future<CompressionResult>` | Compress an image |
+| `compressVideo(VideoCompressionConfig, {Duration? timeout})` | `Future<CompressionResult>` | Compress a video (default timeout 5 min) |
+| `cancel()` | `Future<void>` | Abort the in-flight video job |
+| `release(String path)` | `Future<void>` | Free a compressed result |
+| `releaseResult(CompressionResult)` | `Future<void>` | Release `result.path` if successful |
 
 ### ImageCompressionConfig
 
-Configuration for image compression.
-
 ```dart
 ImageCompressionConfig({
-  required String path,      // Path to the image file
-  int quality = 80,          // Quality 0-100 (default: 80)
-  int? maxWidth,             // Optional max width
-  int? maxHeight,            // Optional max height
+  required String path,
+  int quality = 80,   // 0-100
+  int? maxWidth,
+  int? maxHeight,
 })
 ```
 
 ### VideoCompressionConfig
 
-Configuration for video compression.
-
 ```dart
 VideoCompressionConfig({
-  required String path,              // Path to the video file
-  VideoQuality quality = VideoQuality.medium,  // Quality preset
+  required String path,
+  VideoQuality quality = VideoQuality.medium,
 })
 ```
 
 #### Video Compression Details
 
-When you compress a video, the plugin uses native platform implementations to:
+- **Android:** AndroidX Media3 Transformer — H.264/MP4, target resolution and
+  bitrate per preset, audio preserved, progress events.
+- **iOS:** AVAssetExportSession — system presets (low/medium/high), MP4, audio
+  preserved, network-optimized.
+- **Web:** ffmpeg.wasm (H.264/MP4, enforced bitrate) when available; otherwise
+  MediaRecorder (WebM/MP4, best-effort audio, real-time).
 
-- **Reduce Bitrate**: Videos are re-encoded with lower bitrates based on quality preset
-- **Optimize Format**: Output in MP4 container with H.264 video codec
-- **Maintain Quality**: Balance between file size and visual quality
-- **Preserve Audio**: Audio track is maintained during compression
+| Quality | Resolution | Use Case |
+|---------|-----------|----------|
+| `low` | 480p | Quick sharing, minimal size |
+| `medium` | 720p | General sharing (recommended) |
+| `high` | 1080p | High-quality archival |
 
-**Quality Levels:**
-
-| Quality | Use Case |
-|---------|----------|
-| `low` | Quick sharing, minimal file size |
-| `medium` | General sharing, social media (recommended) |
-| `high` | High-quality archival, professional use |
-
-**Note:** Compression results depend on the original video's characteristics. Videos already heavily compressed may not see significant file size reduction.
-
-## Examples
-
-### Complete Example
+## Complete Example
 
 ```dart
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
-import 'package:media_compressor/media_compressor.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:media_compressor/media_compressor.dart';
 
 class CompressionExample extends StatefulWidget {
+  const CompressionExample({super.key});
   @override
-  _CompressionExampleState createState() => _CompressionExampleState();
+  State<CompressionExample> createState() => _CompressionExampleState();
 }
 
 class _CompressionExampleState extends State<CompressionExample> {
-  String? _result;
+  Uint8List? _bytes;
+  String? _status;
 
   Future<void> _compressImage() async {
-    final picker = ImagePicker();
-    final image = await picker.pickImage(source: ImageSource.gallery);
-    
+    final image = await ImagePicker().pickImage(source: ImageSource.gallery);
     if (image == null) return;
 
     final result = await MediaCompressor.compressImage(
@@ -273,32 +327,34 @@ class _CompressionExampleState extends State<CompressionExample> {
       ),
     );
 
-    setState(() {
-      if (result.isSuccess) {
-        _result = 'Image compressed: ${result.path}';
-      } else {
-        _result = 'Error: ${result.error?.message}';
-      }
-    });
+    if (result.isSuccess) {
+      // Cross-platform read (file path on mobile, blob URL on web).
+      final bytes = await XFile(result.path!).readAsBytes();
+      setState(() {
+        _bytes = bytes;
+        _status = 'Compressed: ${(bytes.length / 1024).toStringAsFixed(1)} KB';
+      });
+      await MediaCompressor.release(result.path!);
+    } else {
+      setState(() => _status = 'Error: ${result.error?.message}');
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text('Media Compressor')),
+      appBar: AppBar(title: const Text('Media Compressor')),
       body: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
+            if (_bytes != null) SizedBox(height: 240, child: Image.memory(_bytes!)),
+            if (_status != null)
+              Padding(padding: const EdgeInsets.all(16), child: Text(_status!)),
             ElevatedButton(
               onPressed: _compressImage,
-              child: Text('Compress Image'),
+              child: const Text('Compress Image'),
             ),
-            if (_result != null)
-              Padding(
-                padding: EdgeInsets.all(16),
-                child: Text(_result!),
-              ),
           ],
         ),
       ),
@@ -309,49 +365,34 @@ class _CompressionExampleState extends State<CompressionExample> {
 
 ## Best Practices
 
-1. **Quality Settings**: Start with quality 80-85 for images - it provides good compression with minimal quality loss
-2. **Dimension Limits**: Set maxWidth/maxHeight to prevent memory issues with very large images
-3. **Error Handling**: Always check `result.isSuccess` before using the compressed file
-4. **File Cleanup**: Delete temporary compressed files when no longer needed
-5. **Timeout**: For large videos, consider increasing the timeout duration
+1. **Quality Settings** — start with 80-85 for images: good compression, minimal loss.
+2. **Dimension Limits** — set `maxWidth`/`maxHeight` to avoid memory spikes on large images.
+3. **Error Handling** — always check `result.isSuccess` before using the output.
+4. **Release Outputs** — call `release()` when done, especially on web.
+5. **Timeout** — increase the timeout for large videos.
+6. **Web Video** — output may be WebM on the fallback path; encoding runs in real time. Use the ffmpeg.wasm backend for MP4 + faster-than-realtime + exact progress.
 
 ## Performance Tips
 
-- Image compression is fast and typically completes in milliseconds
-- Video compression can take several seconds to minutes depending on file size
-- Compressing multiple files? Do it sequentially to avoid memory issues
-- Consider showing a loading indicator during video compression
+- Image compression is fast (typically milliseconds).
+- Video compression can take seconds to minutes depending on file size.
+- Compress files **sequentially** — concurrent video calls return `BUSY`.
+- Show a progress indicator during video compression.
 
 ## Troubleshooting
 
-### Common Issues
+**"File not found" error** — verify the path and permissions.
 
-**"File not found" error**
-- Verify the file path is correct and the file exists
-- Check that the app has necessary permissions
+**Video compression timeout** — increase the timeout, lower the quality, check storage.
 
-**Video compression timeout**
-- Increase timeout duration for large videos
-- Use lower quality settings for faster compression
-- Check available device storage
+**Out-of-memory errors** — reduce `maxWidth`/`maxHeight`; process sequentially; on web, keep source videos within the in-browser size limit.
 
-**Out of memory errors**
-- Reduce maxWidth/maxHeight for images
-- Process files sequentially, not in parallel
-- Close other memory-intensive operations
+**Web: `result.path` won't load** — it's a blob URL; use `Image.network` / a network video source, not `File(...)`.
 
 ## Platform-Specific Features
 
-Both Android and iOS provide full-featured compression with their own native optimizations.
-
-**Core Features (Both Platforms):**
-- ✅ Image compression with quality control (0-100)
-- ✅ Image resolution limiting (maxWidth/maxHeight)
-- ✅ Video compression with quality presets (low/medium/high)
-- ✅ EXIF orientation handling
-- ✅ Memory-efficient processing
-
-For detailed information about platform-specific implementations, advanced features, bitrates, resolutions, and capabilities, see **[PLATFORM_FEATURES.md](https://github.com/Harikrishnan-cr/media_compressor/blob/v1-stable/PLATFORM_FEATURES.md)**.
+For detailed bitrates, resolutions, codecs, and per-platform behavior, see
+**[PLATFORM_FEATURES.md](https://github.com/Harikrishnan-cr/media_compressor/blob/main/PLATFORM_FEATURES.md)**.
 
 ## Contributing
 
@@ -359,11 +400,12 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the MIT License — see the [LICENSE](LICENSE) file for details.
 
 ## Support
 
-For issues, feature requests, or questions, please file an issue on the [GitHub repository](https://github.com/Harikrishnan-cr/media_compressor).
+For issues, feature requests, or questions, please file an issue on the
+[GitHub repository](https://github.com/Harikrishnan-cr/media_compressor).
 
 ## Media Credits
 
