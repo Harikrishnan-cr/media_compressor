@@ -2,203 +2,132 @@ import 'dart:async';
 import 'package:flutter/services.dart';
 import 'package:media_compressor/media_compressor.dart';
 
-/// A singleton class for compressing images and videos using native platform implementations.
+/// Entry point for compressing images and videos across Android, iOS, and Web.
 ///
-/// This class provides static methods for compressing media files with proper error handling
-/// and type safety. All compression operations are performed on the native platform side
-/// for optimal performance.
-///
-/// Example usage:
-/// ```dart
-/// final result = await MediaCompressor.compressImage(
-///   ImageCompressionConfig(
-///     path: '/path/to/image.jpg',
-///     quality: 80,
-///   ),
-/// );
-/// ```
-class MediaCompressor {
-  /// Private constructor to prevent instantiation
-  MediaCompressor._();
-
-  /// Singleton instance
-  static final MediaCompressor _instance = MediaCompressor._();
-
-  /// Get the singleton instance
-  static MediaCompressor get instance => _instance;
-
-  /// Method channel for communication with native code
+/// All methods are static, return a [CompressionResult] (never throw), and on
+/// web return a blob object URL as `path`.
+abstract final class MediaCompressor {
   static const MethodChannel _channel = MethodChannel('native_compressor');
 
-  /// Compress an image file with the specified configuration.
-  ///
-  /// This method compresses an image file using native platform implementations
-  /// for optimal performance and quality.
-  ///
-  /// Parameters:
-  /// - [config]: Configuration object containing compression parameters
-  ///
-  /// Returns a [CompressionResult] containing either:
-  /// - Success: The path to the compressed image file
-  /// - Failure: A [CompressionError] with details about what went wrong
-  ///
-  /// Example:
-  /// ```dart
-  /// final result = await MediaCompressor.compressImage(
-  ///   ImageCompressionConfig(
-  ///     path: '/path/to/image.jpg',
-  ///     quality: 80,
-  ///     maxWidth: 1920,
-  ///     maxHeight: 1080,
-  ///   ),
-  /// );
-  ///
-  /// if (result.isSuccess) {
-  ///   print('Compressed image: ${result.path}');
-  /// } else {
-  ///   print('Error: ${result.error?.message}');
-  /// }
-  /// ```
+  static CompressionResult _mapError(Object e, {required String context}) {
+    if (e is PlatformException) {
+      return CompressionResult.failure(CompressionError(
+        code: e.code,
+        message: e.message ?? 'Platform error during $context',
+        details: e.details,
+      ));
+    }
+    if (e is MissingPluginException) {
+      return CompressionResult.failure(CompressionError(
+        code: 'UNSUPPORTED_PLATFORM',
+        message: 'No $context implementation on this platform.',
+      ));
+    }
+    if (e is TimeoutException) {
+      return CompressionResult.failure(CompressionError(
+        code: 'TIMEOUT',
+        message: e.message ?? '$context timed out',
+      ));
+    }
+    return CompressionResult.failure(CompressionError(
+      code: 'UNKNOWN_ERROR',
+      message: 'Unexpected error during $context: $e',
+    ));
+  }
+
+  static CompressionResult? _validatePath(String path) {
+    if (path.trim().isEmpty) {
+      return CompressionResult.failure(const CompressionError(
+        code: 'INVALID_ARGUMENT',
+        message: 'A non-empty file path is required',
+      ));
+    }
+    return null;
+  }
+
+  /// Compress an image. Returns a [CompressionResult].
   static Future<CompressionResult> compressImage(
     ImageCompressionConfig config,
   ) async {
+    final invalid = _validatePath(config.path);
+    if (invalid != null) return invalid;
     try {
-      // Call native method
-      final String? result = await _channel.invokeMethod(
-        'compressImage',
-        config.toMap(),
-      );
-
-      // Handle result
+      final result =
+          await _channel.invokeMethod<String>('compressImage', config.toMap());
       if (result != null && result.isNotEmpty) {
         return CompressionResult.success(result);
-      } else {
-        return CompressionResult.failure(
-          const CompressionError(
-            code: 'NULL_RESULT',
-            message: 'Compression returned null or empty result',
-          ),
-        );
       }
-    } on PlatformException catch (e) {
-      return CompressionResult.failure(
-        CompressionError(
-          code: e.code,
-          message: e.message ?? 'Platform error occurred during compression',
-          details: e.details,
-        ),
-      );
-    } on TimeoutException catch (e) {
-      return CompressionResult.failure(
-        CompressionError(
-          code: 'TIMEOUT',
-          message: e.message ?? 'Image compression timed out',
-        ),
-      );
+      return CompressionResult.failure(const CompressionError(
+        code: 'NULL_RESULT',
+        message: 'Compression returned a null or empty result',
+      ));
     } catch (e) {
-      return CompressionResult.failure(
-        CompressionError(
-          code: 'UNKNOWN_ERROR',
-          message: 'An unexpected error occurred: ${e.toString()}',
-        ),
-      );
+      return _mapError(e, context: 'image compression');
     }
   }
 
-  /// Compress a video file with the specified configuration.
-  ///
-  /// This method compresses a video file using native platform implementations.
-  /// Video compression can take significant time depending on file size and quality settings.
-  ///
-  /// Parameters:
-  /// - [config]: Configuration object containing compression parameters
-  /// - [timeout]: Optional timeout duration (default: 5 minutes)
-  ///
-  /// Returns a [CompressionResult] containing either:
-  /// - Success: The path to the compressed video file
-  /// - Failure: A [CompressionError] with details about what went wrong
-  ///
-  /// Example:
-  /// ```dart
-  /// final result = await MediaCompressor.compressVideo(
-  ///   VideoCompressionConfig(
-  ///     path: '/path/to/video.mp4',
-  ///     quality: VideoQuality.medium,
-  ///   ),
-  ///   timeout: Duration(minutes: 10), // Optional custom timeout
-  /// );
-  ///
-  /// if (result.isSuccess) {
-  ///   print('Compressed video: ${result.path}');
-  /// } else {
-  ///   print('Error: ${result.error?.message}');
-  /// }
-  /// ```
+  /// Compress a video. [timeout] defaults to 5 minutes. Only one video job runs
+  /// at a time on every platform; a concurrent call fails with code `BUSY`.
   static Future<CompressionResult> compressVideo(
     VideoCompressionConfig config, {
     Duration? timeout,
   }) async {
+    final invalid = _validatePath(config.path);
+    if (invalid != null) return invalid;
     try {
-      // Video compression can take longer, so we use a longer default timeout
       final effectiveTimeout = timeout ?? const Duration(minutes: 5);
-
-      // Call native method with timeout
       final result = await _channel
-          .invokeMethod('compressVideo', config.toMap())
+          .invokeMethod<String>('compressVideo', config.toMap())
           .timeout(
+        effectiveTimeout,
+        onTimeout: () {
+          cancel(); // ask the platform to abort the (single) in-flight job
+          throw TimeoutException(
+            'Video compression timed out',
             effectiveTimeout,
-            onTimeout: () {
-              throw TimeoutException(
-                'Video compression timed out after ${effectiveTimeout.inMinutes} minutes. '
-                'Try with a smaller video, lower quality, or increase the timeout.',
-              );
-            },
           );
-
-      // Handle result
-      if (result != null && result is String && result.isNotEmpty) {
+        },
+      );
+      if (result != null && result.isNotEmpty) {
         return CompressionResult.success(result);
-      } else {
-        return CompressionResult.failure(
-          const CompressionError(
-            code: 'NULL_RESULT',
-            message: 'Compression returned null or invalid result',
-          ),
-        );
       }
-    } on PlatformException catch (e) {
-      return CompressionResult.failure(
-        CompressionError(
-          code: e.code,
-          message: e.message ?? 'Platform error occurred during compression',
-          details: e.details,
-        ),
-      );
-    } on TimeoutException catch (e) {
-      return CompressionResult.failure(
-        CompressionError(
-          code: 'TIMEOUT',
-          message: e.message ?? 'Video compression timed out',
-        ),
-      );
+      return CompressionResult.failure(const CompressionError(
+        code: 'NULL_RESULT',
+        message: 'Compression returned a null or empty result',
+      ));
     } catch (e) {
-      return CompressionResult.failure(
-        CompressionError(
-          code: 'UNKNOWN_ERROR',
-          message: 'An unexpected error occurred: ${e.toString()}',
-        ),
-      );
+      return _mapError(e, context: 'video compression');
     }
   }
-}
 
-/// Exception thrown when an operation times out
-class TimeoutException implements Exception {
-  /// Error message describing the timeout
-  final String? message;
+  /// Abort the in-flight video compression, if any. Safe no-op otherwise.
+  static Future<void> cancel() async {
+    try {
+      await _channel.invokeMethod<void>('cancel');
+    } on MissingPluginException {
+      // not implemented on this platform
+    } on PlatformException {
+      // ignore
+    } catch (_) {}
+  }
 
-  const TimeoutException([this.message]);
+  /// Release resources for a compressed [path] (revokes the blob URL on web;
+  /// deletes the temp file on Android/iOS — only within the plugin cache).
+  /// Never throws.
+  static Future<void> release(String path) async {
+    if (path.trim().isEmpty) return;
+    try {
+      await _channel.invokeMethod<void>('release', {'path': path});
+    } on MissingPluginException {
+      // nothing to release
+    } on PlatformException {
+      // best-effort
+    } catch (_) {}
+  }
 
-  @override
-  String toString() => message ?? 'Operation timed out';
+  /// Convenience: release [result] if it succeeded.
+  static Future<void> releaseResult(CompressionResult result) async {
+    final path = result.path;
+    if (path != null && path.isNotEmpty) await release(path);
+  }
 }

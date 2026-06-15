@@ -1,93 +1,58 @@
-import 'dart:io';
+// Cross-platform video comparison screen (Web + mobile + desktop).
+// Uses video_player via the conditional controller factory.
 import 'package:flutter/material.dart';
-import 'package:media_compressor/media_compressor.dart';
-import 'package:native_video_player/native_video_player.dart';
+import 'package:media_compressor_example/video_player_factory.dart';
+import 'package:video_player/video_player.dart';
 
-class VideoCompareScreen extends StatefulWidget {
-  final File originalVideo;
-  final File compressedVideo;
-  final int originalSize;
-  final int compressedSize;
 
+class VideoCompareScreen extends StatelessWidget {
   const VideoCompareScreen({
     super.key,
-    required this.originalVideo,
-    required this.compressedVideo,
+    required this.originalPath,
+    required this.compressedPath,
     required this.originalSize,
     required this.compressedSize,
   });
 
-  @override
-  State<VideoCompareScreen> createState() => _VideoCompareScreenState();
-}
-
-class _VideoCompareScreenState extends State<VideoCompareScreen> {
-  VideoQuality _videoQuality = VideoQuality.medium;
+  final String originalPath;
+  final String compressedPath;
+  final int originalSize;
+  final int compressedSize;
 
   String _formatBytes(int bytes) {
-    if (bytes < 1024) return "$bytes B";
-    if (bytes < 1024 * 1024) return "${(bytes / 1024).toStringAsFixed(1)} KB";
-    return "${(bytes / (1024 * 1024)).toStringAsFixed(2)} MB";
+    if (bytes < 1024) return '$bytes B';
+    if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
+    return '${(bytes / (1024 * 1024)).toStringAsFixed(2)} MB';
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text("Video Comparison")),
+    final reduction = originalSize > 0
+        ? ((1 - compressedSize / originalSize) * 100).toInt()
+        : 0;
 
+    return Scaffold(
+      appBar: AppBar(title: const Text('Video Comparison')),
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
-            // Quality Selector
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                ChoiceChip(
-                  label: const Text("Low"),
-                  selected: _videoQuality == VideoQuality.low,
-                  onSelected: (_) =>
-                      setState(() => _videoQuality = VideoQuality.low),
-                ),
-                const SizedBox(width: 12),
-                ChoiceChip(
-                  label: const Text("Medium"),
-                  selected: _videoQuality == VideoQuality.medium,
-                  onSelected: (_) =>
-                      setState(() => _videoQuality = VideoQuality.medium),
-                ),
-                const SizedBox(width: 12),
-                ChoiceChip(
-                  label: const Text("High"),
-                  selected: _videoQuality == VideoQuality.high,
-                  onSelected: (_) =>
-                      setState(() => _videoQuality = VideoQuality.high),
-                ),
-              ],
-            ),
-
-            const SizedBox(height: 20),
-
+            Text('$reduction% smaller',
+                style: const TextStyle(
+                    fontWeight: FontWeight.w600, color: Colors.green)),
+            const SizedBox(height: 12),
             Expanded(
-              child: Column(
-                children: [
-                  Expanded(
-                    child: _VideoPlayerCard(
-                      label: "Original",
-                      file: widget.originalVideo,
-                      size: _formatBytes(widget.originalSize),
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: _VideoPlayerCard(
-                      label: "Compressed",
-                      file: widget.compressedVideo,
-                      size: _formatBytes(widget.compressedSize),
-                    ),
-                  ),
-                ],
-              ),
+              child: _VideoCard(
+                  label: 'Original',
+                  pathOrUrl: originalPath,
+                  size: _formatBytes(originalSize)),
+            ),
+            const SizedBox(height: 16),
+            Expanded(
+              child: _VideoCard(
+                  label: 'Compressed',
+                  pathOrUrl: compressedPath,
+                  size: _formatBytes(compressedSize)),
             ),
           ],
         ),
@@ -96,30 +61,36 @@ class _VideoCompareScreenState extends State<VideoCompareScreen> {
   }
 }
 
-// Small reusable player widget
-class _VideoPlayerCard extends StatefulWidget {
+class _VideoCard extends StatefulWidget {
+  const _VideoCard(
+      {required this.label, required this.pathOrUrl, required this.size});
   final String label;
-  final File file;
+  final String pathOrUrl;
   final String size;
 
-  const _VideoPlayerCard({
-    required this.label,
-    required this.file,
-    required this.size,
-  });
-
   @override
-  State<_VideoPlayerCard> createState() => _VideoPlayerCardState();
+  State<_VideoCard> createState() => _VideoCardState();
 }
 
-class _VideoPlayerCardState extends State<_VideoPlayerCard> {
-  NativeVideoPlayerController? _controller;
-  bool _isReady = false;
-  bool _isPlaying = false;
+class _VideoCardState extends State<_VideoCard> {
+  late final VideoPlayerController _controller;
+  bool _ready = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = createVideoController(widget.pathOrUrl)
+      ..setLooping(true)
+      ..initialize().then((_) {
+        if (mounted) setState(() => _ready = true);
+      }).catchError((_) {
+        if (mounted) setState(() => _ready = false);
+      });
+  }
 
   @override
   void dispose() {
-    _controller?.dispose();
+    _controller.dispose();
     super.dispose();
   }
 
@@ -128,48 +99,44 @@ class _VideoPlayerCardState extends State<_VideoPlayerCard> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(widget.label, style: const TextStyle(fontWeight: FontWeight.bold)),
-        Text(
-          widget.size,
-          style: TextStyle(color: Colors.grey[600], fontSize: 12),
-        ),
+        Text(widget.label,
+            style: const TextStyle(fontWeight: FontWeight.bold)),
+        Text(widget.size,
+            style: TextStyle(color: Colors.grey[600], fontSize: 12)),
         const SizedBox(height: 8),
-
         Expanded(
           child: Stack(
             alignment: Alignment.center,
             children: [
               ClipRRect(
                 borderRadius: BorderRadius.circular(12),
-                child: NativeVideoPlayerView(
-                  onViewReady: (controller) async {
-                    _controller = controller;
-                    await _controller!.loadVideo(
-                      VideoSource(
-                        path: widget.file.path,
-                        type: VideoSourceType.file,
+                child: _ready
+                    ? AspectRatio(
+                        aspectRatio: _controller.value.aspectRatio == 0
+                            ? 16 / 9
+                            : _controller.value.aspectRatio,
+                        child: VideoPlayer(_controller),
+                      )
+                    : Container(
+                        color: Colors.black12,
+                        child:
+                            const Center(child: CircularProgressIndicator()),
                       ),
-                    );
-                    setState(() => _isReady = true);
-                  },
-                ),
               ),
-
-              if (_isReady)
+              if (_ready)
                 IconButton(
                   icon: Icon(
-                    _isPlaying ? Icons.pause_circle : Icons.play_circle,
+                    _controller.value.isPlaying
+                        ? Icons.pause_circle
+                        : Icons.play_circle,
                     size: 58,
                     color: Colors.white,
                   ),
-                  onPressed: () {
-                    if (_isPlaying) {
-                      _controller?.pause();
-                    } else {
-                      _controller?.play();
-                    }
-                    setState(() => _isPlaying = !_isPlaying);
-                  },
+                  onPressed: () => setState(() {
+                    _controller.value.isPlaying
+                        ? _controller.pause()
+                        : _controller.play();
+                  }),
                 ),
             ],
           ),

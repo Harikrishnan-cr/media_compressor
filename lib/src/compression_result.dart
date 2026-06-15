@@ -1,81 +1,36 @@
 /// Result of a compression operation.
-///
-/// This class represents the outcome of an image or video compression operation.
-/// It contains either a successful path to the compressed file or error information
-/// if the compression failed.
-///
-/// Example:
-/// ```dart
-/// final result = await MediaCompressor.compressImage(config);
-///
-/// if (result.isSuccess) {
-///   print('Success: ${result.path}');
-/// } else {
-///   print('Failed: ${result.error?.message}');
-/// }
-/// ```
 class CompressionResult {
-  /// Path to the compressed file (null if compression failed)
+  /// Path/URL to the compressed file (null if compression failed).
   final String? path;
 
-  /// Error information if compression failed (null if successful)
+  /// Error information if compression failed (null if successful).
   final CompressionError? error;
 
-  /// Whether the compression was successful
   bool get isSuccess => path != null && error == null;
-
-  /// Whether the compression failed
   bool get isFailure => !isSuccess;
 
   const CompressionResult({this.path, this.error});
 
-  /// Create a successful compression result
-  ///
-  /// Parameters:
-  /// - [path]: Path to the successfully compressed file
-  factory CompressionResult.success(String path) {
-    return CompressionResult(path: path);
-  }
+  factory CompressionResult.success(String path) =>
+      CompressionResult(path: path);
 
-  /// Create a failed compression result
-  ///
-  /// Parameters:
-  /// - [error]: Error information describing what went wrong
-  factory CompressionResult.failure(CompressionError error) {
-    return CompressionResult(error: error);
-  }
+  factory CompressionResult.failure(CompressionError error) =>
+      CompressionResult(error: error);
 
   @override
-  String toString() {
-    if (isSuccess) {
-      return 'CompressionResult.success(path: $path)';
-    } else {
-      return 'CompressionResult.failure(error: $error)';
-    }
-  }
+  String toString() => isSuccess
+      ? 'CompressionResult.success(path: $path)'
+      : 'CompressionResult.failure(error: $error)';
 }
 
 /// Error information for failed compression operations.
 ///
-/// This class encapsulates all error details including a code for programmatic
-/// handling and a human-readable message.
-///
-/// Common error codes:
-/// - `FILE_NOT_FOUND`: Input file doesn't exist
-/// - `INVALID_PATH`: Invalid file path provided
-/// - `COMPRESSION_FAILED`: Native compression operation failed
-/// - `NULL_RESULT`: Unexpected null result from native code
-/// - `TIMEOUT`: Operation exceeded timeout duration
-/// - `UNKNOWN_ERROR`: Unexpected error occurred
+/// Common codes: `INVALID_ARGUMENT`, `FILE_NOT_FOUND`, `COMPRESSION_ERROR`,
+/// `NULL_RESULT`, `TIMEOUT`, `CANCELLED`, `BUSY`, `UNSUPPORTED`,
+/// `UNSUPPORTED_PLATFORM`, `LOAD_ERROR`, `PLAYBACK_ERROR`, `UNKNOWN_ERROR`.
 class CompressionError {
-  /// Error code for programmatic error handling
   final String code;
-
-  /// Human-readable error message
   final String message;
-
-  /// Additional error details (optional)
-  /// May contain platform-specific error information
   final dynamic details;
 
   const CompressionError({
@@ -85,22 +40,17 @@ class CompressionError {
   });
 
   @override
-  String toString() {
-    if (details != null) {
-      return 'CompressionError(code: $code, message: $message, details: $details)';
-    }
-    return 'CompressionError(code: $code, message: $message)';
-  }
+  String toString() => details != null
+      ? 'CompressionError(code: $code, message: $message, details: $details)'
+      : 'CompressionError(code: $code, message: $message)';
 
   @override
-  bool operator ==(Object other) {
-    if (identical(this, other)) return true;
-
-    return other is CompressionError &&
-        other.code == code &&
-        other.message == message &&
-        other.details == details;
-  }
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is CompressionError &&
+          other.code == code &&
+          other.message == message &&
+          other.details == details);
 
   @override
   int get hashCode => code.hashCode ^ message.hashCode ^ details.hashCode;
